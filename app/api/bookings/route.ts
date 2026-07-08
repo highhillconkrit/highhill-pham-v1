@@ -67,6 +67,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "A booking with this email already exists on this date for this slot" }, { status: 409 });
   }
 
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  const monthCount = await prisma.booking.count({
+    where: { email, date: { gte: monthStart, lte: monthEnd } },
+  });
+
+  if (monthCount >= 7) {
+    return NextResponse.json({ error: "Maximum of 7 bookings per month reached" }, { status: 429 });
+  }
+
   const booking = await prisma.booking.create({
     data: { date, email, slot: bookingSlot, name: user.name, phone: user.phone },
   });

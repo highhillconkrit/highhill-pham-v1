@@ -220,6 +220,11 @@ export default function Calendar() {
       return;
     }
 
+    if (res.status === 429) {
+      alert("Maximum of 7 bookings per month reached.");
+      return;
+    }
+
     if (!res.ok) {
       alert("Failed to save booking.");
       return;
