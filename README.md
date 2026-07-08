@@ -1,59 +1,36 @@
-# Google Sign-In + Prisma
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-Login with a Google account; all user data (profile, sessions, linked
-accounts) is stored and managed through Prisma.
+## Getting Started
 
-## Stack
-- Next.js 14 (App Router)
-- NextAuth (Auth.js) — Google OAuth provider, database sessions
-- Prisma — `@next-auth/prisma-adapter` persists users/accounts/sessions
+First, run the development server:
 
-## Setup
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-1. **Install dependencies**
-   ```bash
-   npm install
-   ```
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-2. **Google OAuth credentials**
-   - Go to [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials)
-   - Create an OAuth Client ID (type: Web application)
-   - Add authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
-   - Copy the Client ID and Client Secret
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-3. **Environment variables**
-   ```bash
-   cp .env.example .env
-   ```
-   Fill in `DATABASE_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and
-   generate `NEXTAUTH_SECRET` with `openssl rand -base64 32`.
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-4. **Database**
-   ```bash
-   npm run db:push      # create tables from prisma/schema.prisma
-   npm run db:studio    # optional: browse data in a GUI
-   ```
+## Learn More
 
-5. **Run it**
-   ```bash
-   npm run dev
-   ```
-   Visit `http://localhost:3000` → redirects to `/login`.
+To learn more about Next.js, take a look at the following resources:
 
-## How the pieces fit together
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-- `prisma/schema.prisma` — `User`, `Account`, `Session`, `VerificationToken`
-  models. `User` has two custom fields (`bio`, `role`) you can extend.
-- `lib/auth.ts` — NextAuth config: Google provider + `PrismaAdapter`, so
-  every sign-in writes/updates a row in `User` and `Account` automatically.
-- `app/login` — sign-in screen, redirects to `/dashboard` on success.
-- `app/dashboard` — protected page that reads the user straight from
-  Prisma (`prisma.user.findUniqueOrThrow`) and renders an editable panel.
-- `app/api/user/route.ts` — `PATCH` to update profile fields, `DELETE`
-  to remove the account and all related rows (cascades via the schema).
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Extending the User model
+## Deploy on Vercel
 
-Add fields to `User` in `schema.prisma`, run `npm run db:push`, then
-read/write them the same way `bio` is handled in `profile-panel.tsx`
-and `app/api/user/route.ts`.
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

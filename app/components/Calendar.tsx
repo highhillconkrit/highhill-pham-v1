@@ -1,0 +1,385 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSession, signIn, signOut } from "next-auth/react";
+import Link from "next/link";
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function getMonthDays(year: number, month: number) {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startDay = firstDay.getDay();
+  const daysInMonth = lastDay.getDate();
+
+  const days: (number | null)[] = [];
+  for (let i = 0; i < startDay; i++) days.push(null);
+  for (let d = 1; d <= daysInMonth; d++) days.push(d);
+  return days;
+}
+
+type BookingRecord = {
+  id: string;
+  date: string;
+  slot: string;
+  name: string | null;
+  email: string;
+  phone: string | null;
+};
+
+function isWeekend(year: number, month: number, day: number) {
+  const dow = new Date(year, month, day).getDay();
+  return dow === 0 || dow === 6;
+}
+
+function MonthGrid({
+  year,
+  month,
+  today,
+  bookingsByDay,
+  onSlotClick,
+  userEmail,
+}: {
+  year: number;
+  month: number;
+  today: Date;
+  bookingsByDay: Record<number, BookingRecord[]>;
+  onSlotClick: (year: number, month: number, day: number, slot: string, booking: BookingRecord | null) => void;
+  userEmail: string | null | undefined;
+}) {
+  const days = getMonthDays(year, month);
+
+  const isToday = (d: number) =>
+    d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+
+  const renderDay = (d: number, key: number) => {
+    const dayBookings = bookingsByDay[d] ?? [];
+    const weekend = isWeekend(year, month, d);
+    const todayMatch = isToday(d);
+
+    const getBooking = (slot: string) => dayBookings.find(b => b.slot === slot) ?? null;
+
+    const otherUser = (booking: BookingRecord | null) => booking !== null && booking.email !== userEmail;
+
+    if (weekend) {
+      const amBooking = getBooking("morning");
+      const pmBooking = getBooking("evening");
+      const amOther = otherUser(amBooking);
+      const pmOther = otherUser(pmBooking);
+      return (
+        <div
+          key={key}
+          className="relative aspect-square flex gap-0.5"
+        >
+          <button
+            onClick={() => onSlotClick(year, month, d, "morning", amBooking)}
+            className={`flex flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors flex-1
+              ${amBooking ? (amOther ? "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300" : "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300") : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400"}
+            `}
+          >
+            <span className={`${todayMatch ? "text-blue-600 font-bold" : ""} ${amBooking ? "font-semibold" : ""}`}>{d}</span>
+            <span className="text-[10px] leading-tight">AM</span>
+          </button>
+          <button
+            onClick={() => onSlotClick(year, month, d, "evening", pmBooking)}
+            className={`flex flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors flex-1
+              ${pmBooking ? (pmOther ? "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300" : "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300") : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400"}
+            `}
+          >
+            <span className={`${todayMatch ? "text-blue-600 font-bold" : ""} ${pmBooking ? "font-semibold" : ""}`}>{d}</span>
+            <span className="text-[10px] leading-tight">PM</span>
+          </button>
+        </div>
+      );
+    }
+
+    const defaultBooking = getBooking("default");
+    const booked = defaultBooking !== null;
+    const bookedOther = otherUser(defaultBooking);
+    return (
+      <div
+        key={key}
+        onClick={() => onSlotClick(year, month, d, "default", defaultBooking)}
+        className={`
+          relative aspect-square flex flex-col items-center justify-center rounded-lg text-sm transition-colors cursor-pointer
+          ${booked ? (bookedOther ? "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 hover:bg-red-200 dark:hover:bg-red-800" : "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-200 dark:hover:bg-emerald-800") : "hover:bg-blue-50 dark:hover:bg-blue-950"}
+          ${!booked && todayMatch ? "bg-blue-600 text-white font-semibold hover:bg-blue-700" : ""}
+          ${!booked && !todayMatch ? "text-zinc-800 dark:text-zinc-200" : ""}
+        `}
+      >
+        <span className={`${booked ? "font-semibold" : ""}`}>{d}</span>
+        {booked && <span className="text-[8px] leading-none mt-0.5 opacity-75">booked</span>}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex-1 min-w-0">
+      <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
+        {new Date(year, month).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+      </h2>
+      <div className="grid grid-cols-7 gap-1 mb-2">
+        {WEEKDAYS.map(day => (
+          <div key={day} className="text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 py-1">
+            {day}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {days.map((d, i) => (d === null ? <div key={i} /> : renderDay(d, i)))}
+      </div>
+    </div>
+  );
+}
+
+export default function Calendar() {
+  const today = new Date();
+  const { data: session } = useSession();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth());
+  const [bookings, setBookings] = useState<BookingRecord[]>([]);
+  const [selectedDate, setSelectedDate] = useState<{ year: number; month: number; day: number } | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<string>("default");
+  const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(null);
+  const [form, setForm] = useState({ email: "" });
+
+  const minYear = today.getFullYear();
+  const minMonth = today.getMonth();
+  const maxDate = new Date(today.getFullYear(), today.getMonth() + 2, 1);
+  const maxYear = maxDate.getFullYear();
+  const maxMonth = maxDate.getMonth();
+
+  const atMin = year === minYear && month === minMonth;
+  const atMax = year === maxYear && month === maxMonth;
+
+  const fetchMonth = async (y: number, m: number) => {
+    const res = await fetch(`/api/bookings?year=${y}&month=${m}`);
+    if (res.ok) return res.json() as Promise<BookingRecord[]>;
+    return [] as BookingRecord[];
+  };
+
+  const loadBookings = async () => {
+    const results = await fetchMonth(year, month);
+    setBookings(results);
+  };
+
+  useEffect(() => { loadBookings(); }, [year, month]);
+
+  const bookingsByDay = (targetYear: number, targetMonth: number) => {
+    const map: Record<number, BookingRecord[]> = {};
+    for (const b of bookings) {
+      const d = new Date(b.date);
+      if (d.getFullYear() === targetYear && d.getMonth() === targetMonth) {
+        const day = d.getDate();
+        if (!map[day]) map[day] = [];
+        map[day].push(b);
+      }
+    }
+    return map;
+  };
+
+  const openBooking = (y: number, m: number, d: number, slot: string, booking: BookingRecord | null) => {
+    setSelectedDate({ year: y, month: m, day: d });
+    setSelectedSlot(slot);
+    setSelectedBooking(booking);
+    setForm({ email: session?.user?.email ?? "" });
+  };
+
+  const closeBooking = () => {
+    setSelectedDate(null);
+    setSelectedBooking(null);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedBooking) return;
+    if (!confirm("Cancel this booking?")) return;
+
+    await fetch(`/api/bookings?id=${selectedBooking.id}`, { method: "DELETE" });
+    closeBooking();
+    loadBookings();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDate) return;
+
+    const res = await fetch("/api/bookings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        year: selectedDate.year,
+        month: selectedDate.month,
+        day: selectedDate.day,
+        slot: selectedSlot,
+        ...form,
+      }),
+    });
+
+    if (res.status === 409) {
+      alert("A booking with this email already exists on this date for this slot.");
+      return;
+    }
+
+    if (!res.ok) {
+      alert("Failed to save booking.");
+      return;
+    }
+
+    closeBooking();
+    loadBookings();
+  };
+
+  if (!session?.user) {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-zinc-50 dark:bg-black p-4">
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-8 w-full max-w-sm text-center">
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">Calendar</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">Sign in to view and manage bookings</p>
+          <button onClick={() => signIn("google")} className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+            <svg className="w-4 h-4" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Sign in with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="w-full max-w-3xl mx-auto">
+        <div className="flex items-center justify-end mb-4 gap-4">
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">
+            {session.user.email}
+          </span>
+          <Link href="/profile" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+            Profile
+          </Link>
+          <Link href="/bookings" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+            List view
+          </Link>
+          <button onClick={() => signOut()} className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
+            Sign out
+          </button>
+        </div>
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <button onClick={() => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); }} className={`p-2 rounded-lg transition-colors ${atMin ? "pointer-events-none opacity-30" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
+            <svg className="w-5 h-5 text-zinc-600 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">{new Date(year, month).toLocaleDateString("en-US", { year: "numeric" })}</span>
+          <button onClick={() => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); }} className={`p-2 rounded-lg transition-colors ${atMax ? "pointer-events-none opacity-30" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
+            <svg className="w-5 h-5 text-zinc-600 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        <MonthGrid year={year} month={month} today={today} bookingsByDay={bookingsByDay(year, month)} onSlotClick={openBooking} userEmail={session?.user?.email} />
+      </div>
+      </div>
+
+      {selectedDate !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={closeBooking}>
+          <div
+            className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-6 w-full max-w-sm mx-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
+              {new Date(selectedDate.year, selectedDate.month, selectedDate.day).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+            </h3>
+
+            {selectedBooking ? (
+              <div className="mt-4 space-y-3">
+                {selectedBooking.slot !== "default" && (
+                  <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 px-4 py-3">
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">Slot</p>
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 capitalize">{selectedBooking.slot}</p>
+                  </div>
+                )}
+                <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 px-4 py-3">
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">Name</p>
+                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{selectedBooking.name}</p>
+                </div>
+                <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 px-4 py-3">
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">Email</p>
+                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{selectedBooking.email}</p>
+                </div>
+                <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 px-4 py-3">
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">Phone</p>
+                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{selectedBooking.phone}</p>
+                </div>
+                <div className="flex gap-3 mt-2">
+                  <button
+                    onClick={closeBooking}
+                    className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    Close
+                  </button>
+                  {session?.user?.email === selectedBooking.email && (
+                    <button
+                      onClick={handleDelete}
+                      className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+                    >
+                      Cancel Booking
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">
+                {isWeekend(selectedDate.year, selectedDate.month, selectedDate.day) && (
+                  <div className="flex gap-2">
+                    {["morning", "evening"].map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setSelectedSlot(s)}
+                        className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium capitalize transition-colors ${
+                          selectedSlot === s
+                            ? "border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
+                            : "border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  required
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <div className="flex gap-3 mt-2">
+                  <button
+                    type="button"
+                    onClick={closeBooking}
+                    className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                  >
+                    Confirm
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
