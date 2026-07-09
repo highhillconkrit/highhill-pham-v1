@@ -13,27 +13,111 @@ type BookingRecord = {
   phone: string | null;
 };
 
-function groupByUserPerMonth(bookings: BookingRecord[]) {
-  const groups: Record<string, { name: string | null; email: string; phone: string | null; months: Record<string, BookingRecord[]> }> = {};
-  for (const b of bookings) {
-    if (!groups[b.email]) {
-      groups[b.email] = { name: b.name, email: b.email, phone: b.phone, months: {} };
-    }
-    const d = new Date(b.date);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    if (!groups[b.email].months[key]) groups[b.email].months[key] = [];
-    groups[b.email].months[key].push(b);
+function isWeekend(year: number, month: number, day: number) {
+  const dow = new Date(year, month, day).getDay();
+  return dow === 0 || dow === 6;
+}
+
+function getAllDates(minDate: Date, maxDate: Date) {
+  const dates: { year: number; month: number; day: number }[] = [];
+  const d = new Date(minDate);
+  d.setHours(0, 0, 0, 0);
+  const end = new Date(maxDate);
+  end.setHours(0, 0, 0, 0);
+  while (d <= end) {
+    dates.push({ year: d.getFullYear(), month: d.getMonth(), day: d.getDate() });
+    d.setDate(d.getDate() + 1);
   }
-  return groups;
+  return dates;
+}
+
+function bookingsByDate(bookings: BookingRecord[]) {
+  const map: Record<string, BookingRecord[]> = {};
+  for (const b of bookings) {
+    const d = new Date(b.date);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if (!map[key]) map[key] = [];
+    map[key].push(b);
+  }
+  return map;
 }
 
 export default function BookingsPage() {
   const { data: session } = useSession();
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
+  const [selectedDate, setSelectedDate] = useState<{ year: number; month: number; day: number } | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<string>("default");
+  const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(null);
+  const [form, setForm] = useState({ email: "" });
+
+  const today = new Date();
+  const minDate = new Date(today.getFullYear(), today.getMonth() - 1, 25);
+  const maxDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
   useEffect(() => {
     fetch("/api/bookings").then(r => r.ok && r.json()).then(setBookings);
   }, []);
+
+  const loadBookings = async () => {
+    const res = await fetch("/api/bookings");
+    if (res.ok) setBookings(await res.json());
+  };
+
+  const byDate = bookingsByDate(bookings);
+  const allDates = getAllDates(minDate, maxDate);
+
+  const openBooking = (y: number, m: number, d: number, booking: BookingRecord | null) => {
+    setSelectedDate({ year: y, month: m, day: d });
+    setSelectedSlot(isWeekend(y, m, d) ? "morning" : "default");
+    setSelectedBooking(booking);
+    setForm({ email: session?.user?.email ?? "" });
+  };
+
+  const closeBooking = () => {
+    setSelectedDate(null);
+    setSelectedBooking(null);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedBooking) return;
+    if (!confirm("Cancel this booking?")) return;
+    await fetch(`/api/bookings?id=${selectedBooking.id}`, { method: "DELETE" });
+    closeBooking();
+    loadBookings();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDate) return;
+
+    const res = await fetch("/api/bookings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        year: selectedDate.year,
+        month: selectedDate.month,
+        day: selectedDate.day,
+        slot: selectedSlot,
+        ...form,
+      }),
+    });
+
+    if (res.status === 409) {
+      alert("A booking with this email already exists on this date for this slot.");
+      return;
+    }
+    if (res.status === 429) {
+      alert("Maximum of 7 bookings per month reached.");
+      return;
+    }
+    if (!res.ok) {
+      alert("Failed to save booking.");
+      return;
+    }
+
+    closeBooking();
+    loadBookings();
+  };
 
   if (!session?.user) {
     return (
@@ -55,8 +139,13 @@ export default function BookingsPage() {
     );
   }
 
-  const grouped = groupByUserPerMonth(bookings);
-  const users = Object.values(grouped).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+  const byMonth: Record<string, { year: number; month: number; day: number }[]> = {};
+  for (const d of allDates) {
+    const key = `${d.year}-${String(d.month + 1).padStart(2, "0")}`;
+    if (!byMonth[key]) byMonth[key] = [];
+    byMonth[key].push(d);
+  }
+  const monthKeys = Object.keys(byMonth).sort();
 
   return (
     <div className="flex flex-1 bg-zinc-50 dark:bg-black p-4">
@@ -68,59 +157,196 @@ export default function BookingsPage() {
           </Link>
         </div>
 
-        {users.length === 0 ? (
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-8 text-center">
-            <p className="text-zinc-500 dark:text-zinc-400">No bookings yet.</p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {users.map(u => {
-              const monthKeys = Object.keys(u.months).sort();
-              const total = monthKeys.reduce((s, k) => s + u.months[k].length, 0);
-              return (
-                <div key={u.email} className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-6">
-                  <div className="mb-4">
-                    <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{u.name}</h2>
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400">{u.email} &middot; {u.phone} &middot; {total} booking{total !== 1 ? "s" : ""}</p>
-                  </div>
-                  <div className="space-y-4">
-                    {monthKeys.map(mk => {
-                      const [y, m] = mk.split("-").map(Number);
-                      const label = new Date(y, m - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
-                      const monthBookings = u.months[mk];
+        <div className="space-y-6">
+          {monthKeys.map(mk => {
+            const [y, m] = mk.split("-").map(Number);
+            const label = new Date(y, m - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+            const days = byMonth[mk];
+            const monthBookingCount = days.filter(d => {
+              const key = `${d.year}-${d.month}-${d.day}`;
+              return byDate[key] !== undefined;
+            }).length;
+
+            return (
+              <div key={mk} className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-6">
+                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">{label} &middot; {monthBookingCount} booking{monthBookingCount !== 1 ? "s" : ""}</h2>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-200 dark:border-zinc-700">
+                      <th className="text-left pb-2 font-medium text-zinc-500 dark:text-zinc-400">Date</th>
+                      <th className="text-left pb-2 font-medium text-zinc-500 dark:text-zinc-400">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {days.map(d => {
+                      const key = `${d.year}-${d.month}-${d.day}`;
+                      const dayBookings = byDate[key] ?? [];
+                      const weekend = isWeekend(d.year, d.month, d.day);
+                      const isToday = d.year === today.getFullYear() && d.month === today.getMonth() && d.day === today.getDate();
+
+                      if (weekend) {
+                        const morningBooking = dayBookings.find(b => b.slot === "morning") ?? null;
+                        const eveningBooking = dayBookings.find(b => b.slot === "evening") ?? null;
+
+                        const morningOwn = morningBooking?.email === session.user.email;
+                        const eveningOwn = eveningBooking?.email === session.user.email;
+
+                        return (
+                          <tr key={key} className="border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+                            <td className={`py-2 text-zinc-900 dark:text-zinc-100 ${isToday ? "font-bold text-blue-600" : ""}`}>
+                              {new Date(d.year, d.month, d.day).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                            </td>
+                            <td className="py-2">
+                              <div className="flex gap-2">
+                                {morningBooking ? (
+                                  <button onClick={() => openBooking(d.year, d.month, d.day, morningBooking)} className={`rounded px-2 py-1 text-xs font-medium ${morningOwn ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300"}`}>
+                                    AM &middot; {morningBooking.name}
+                                  </button>
+                                ) : (
+                                  <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                    AM &middot; Free
+                                  </button>
+                                )}
+                                {eveningBooking ? (
+                                  <button onClick={() => openBooking(d.year, d.month, d.day, eveningBooking)} className={`rounded px-2 py-1 text-xs font-medium ${eveningOwn ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300"}`}>
+                                    PM &middot; {eveningBooking.name}
+                                  </button>
+                                ) : (
+                                  <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                    PM &middot; Free
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      const defaultBooking = dayBookings.find(b => b.slot === "default") ?? null;
+                      const defaultOwn = defaultBooking?.email === session.user.email;
+
                       return (
-                        <div key={mk}>
-                          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">{label} &middot; {monthBookings.length} booking{monthBookings.length !== 1 ? "s" : ""}</h3>
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b border-zinc-200 dark:border-zinc-700">
-                                <th className="text-left pb-2 font-medium text-zinc-500 dark:text-zinc-400">Date</th>
-                                <th className="text-left pb-2 font-medium text-zinc-500 dark:text-zinc-400">Slot</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {monthBookings.map(b => {
-                                const d = new Date(b.date);
-                                const dateStr = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-                                return (
-                                  <tr key={b.id} className="border-b border-zinc-100 dark:border-zinc-800 last:border-0">
-                                    <td className="py-2 text-zinc-900 dark:text-zinc-100">{dateStr}</td>
-                                    <td className="py-2 capitalize text-zinc-600 dark:text-zinc-400">{b.slot === "default" ? "Full day" : b.slot}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
+                        <tr key={key} className="border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+                          <td className={`py-2 text-zinc-900 dark:text-zinc-100 ${isToday ? "font-bold text-blue-600" : ""}`}>
+                            {new Date(d.year, d.month, d.day).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                          </td>
+                          <td className="py-2">
+                            {defaultBooking ? (
+                              <button onClick={() => openBooking(d.year, d.month, d.day, defaultBooking)} className={`rounded px-2 py-1 text-xs font-medium ${defaultOwn ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300"}`}>
+                                Booked &middot; {defaultBooking.name}
+                              </button>
+                            ) : (
+                              <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                Free
+                              </button>
+                            )}
+                          </td>
+                        </tr>
                       );
                     })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
+        </div>
       </div>
+
+      {selectedDate !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={closeBooking}>
+          <div
+            className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-6 w-full max-w-sm mx-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
+              {new Date(selectedDate.year, selectedDate.month, selectedDate.day).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+            </h3>
+
+            {selectedBooking ? (
+              <div className="mt-4 space-y-3">
+                {selectedBooking.slot !== "default" && (
+                  <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 px-4 py-3">
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">Slot</p>
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 capitalize">{selectedBooking.slot}</p>
+                  </div>
+                )}
+                <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 px-4 py-3">
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">Name</p>
+                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{selectedBooking.name}</p>
+                </div>
+                <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 px-4 py-3">
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">Email</p>
+                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{selectedBooking.email}</p>
+                </div>
+                <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 px-4 py-3">
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">Phone</p>
+                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{selectedBooking.phone}</p>
+                </div>
+                <div className="flex gap-3 mt-2">
+                  <button
+                    onClick={closeBooking}
+                    className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    Close
+                  </button>
+                  {session?.user?.email === selectedBooking.email && (
+                    <button
+                      onClick={handleDelete}
+                      className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+                    >
+                      Cancel Booking
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">
+                {isWeekend(selectedDate.year, selectedDate.month, selectedDate.day) && (
+                  <div className="flex gap-2">
+                    {["morning", "evening"].map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setSelectedSlot(s)}
+                        className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium capitalize transition-colors ${
+                          selectedSlot === s
+                            ? "border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
+                            : "border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  required
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <div className="flex gap-3 mt-2">
+                  <button
+                    type="button"
+                    onClick={closeBooking}
+                    className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                  >
+                    Confirm
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

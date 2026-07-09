@@ -35,31 +35,68 @@ function isWeekend(year: number, month: number, day: number) {
 function MonthGrid({
   year,
   month,
-  today,
+  minDate,
+  maxDate,
   bookingsByDay,
   onSlotClick,
   userEmail,
 }: {
   year: number;
   month: number;
-  today: Date;
+  minDate: Date;
+  maxDate: Date;
   bookingsByDay: Record<number, BookingRecord[]>;
   onSlotClick: (year: number, month: number, day: number, slot: string, booking: BookingRecord | null) => void;
   userEmail: string | null | undefined;
 }) {
   const days = getMonthDays(year, month);
 
-  const isToday = (d: number) =>
-    d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+  const isToday = (d: number) => {
+    const today = new Date();
+    return d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+  };
+
+  const canBook = (d: number) => {
+    const date = new Date(year, month, d);
+    const min = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
+    const max = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate());
+    return date >= min && date <= max;
+  };
 
   const renderDay = (d: number, key: number) => {
     const dayBookings = bookingsByDay[d] ?? [];
     const weekend = isWeekend(year, month, d);
     const todayMatch = isToday(d);
+    const bookable = canBook(d);
 
     const getBooking = (slot: string) => dayBookings.find(b => b.slot === slot) ?? null;
 
     const otherUser = (booking: BookingRecord | null) => booking !== null && booking.email !== userEmail;
+
+    if (!bookable) {
+      if (weekend) {
+        return (
+          <div key={key} className="relative aspect-square flex gap-0.5">
+            <div className="flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600">
+              <span>{d}</span>
+              <span className="text-[10px] leading-tight">AM</span>
+            </div>
+            <div className="flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600">
+              <span>{d}</span>
+              <span className="text-[10px] leading-tight">PM</span>
+            </div>
+          </div>
+        );
+      }
+      return (
+        <div
+          key={key}
+          className="relative aspect-square flex flex-col items-center justify-center rounded-lg text-sm bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600"
+        >
+          <span>{d}</span>
+        </div>
+      );
+    }
 
     if (weekend) {
       const amBooking = getBooking("morning");
@@ -143,9 +180,10 @@ export default function Calendar() {
   const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(null);
   const [form, setForm] = useState({ email: "" });
 
-  const minYear = today.getFullYear();
-  const minMonth = today.getMonth();
-  const maxDate = new Date(today.getFullYear(), today.getMonth() + 2, 1);
+  const minDate = new Date(today.getFullYear(), today.getMonth() - 1, 25);
+  const maxDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const minYear = minDate.getFullYear();
+  const minMonth = minDate.getMonth();
   const maxYear = maxDate.getFullYear();
   const maxMonth = maxDate.getMonth();
 
@@ -286,7 +324,7 @@ export default function Calendar() {
           </button>
         </div>
 
-        <MonthGrid year={year} month={month} today={today} bookingsByDay={bookingsByDay(year, month)} onSlotClick={openBooking} userEmail={session?.user?.email} />
+        <MonthGrid year={year} month={month} minDate={minDate} maxDate={maxDate} bookingsByDay={bookingsByDay(year, month)} onSlotClick={openBooking} userEmail={session?.user?.email} />
       </div>
       </div>
 
