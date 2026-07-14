@@ -20,6 +20,9 @@ export default function AdminUsersPage() {
   const [editing, setEditing] = useState<UserRecord | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", member: false });
   const [saved, setSaved] = useState(false);
+  const today = new Date();
+  const [exportYear, setExportYear] = useState(today.getFullYear());
+  const [exportMonth, setExportMonth] = useState(today.getMonth());
 
   const loadUsers = async () => {
     try {
@@ -142,6 +145,42 @@ export default function AdminUsersPage() {
             </table>
           </div>
         )}
+
+        <div className="mt-6 bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-6">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Export Check-in Report</h2>
+          <div className="flex items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-zinc-500 dark:text-zinc-400">Month</label>
+              <select
+                value={exportMonth}
+                onChange={e => setExportMonth(Number(e.target.value))}
+                className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {Array.from({ length: 12 }, (_, i) => (
+                  <option key={i} value={i}>{new Date(0, i).toLocaleString("en-US", { month: "long" })}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-zinc-500 dark:text-zinc-400">Year</label>
+              <select
+                value={exportYear}
+                onChange={e => setExportYear(Number(e.target.value))}
+                className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {Array.from({ length: 5 }, (_, i) => today.getFullYear() - 2 + i).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              onClick={() => window.open(`/api/admin/export?year=${exportYear}&month=${exportMonth}`, "_blank")}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors whitespace-nowrap"
+            >
+              Download CSV
+            </button>
+          </div>
+        </div>
       </div>
 
       {editing && (
