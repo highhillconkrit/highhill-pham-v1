@@ -25,6 +25,17 @@ type BookingRecord = {
   name: string | null;
   email: string;
   phone: string | null;
+  checkedInAt: string | null;
+  checkedOutAt: string | null;
+};
+
+type OperatingHours = {
+  id: string;
+  dayType: string;
+  slot: string;
+  openTime: string;
+  closeTime: string;
+  enabled: boolean;
 };
 
 function isWeekend(year: number, month: number, day: number) {
@@ -40,6 +51,7 @@ function MonthGrid({
   bookingsByDay,
   onSlotClick,
   userEmail,
+  operatingHours,
 }: {
   year: number;
   month: number;
@@ -48,6 +60,7 @@ function MonthGrid({
   bookingsByDay: Record<number, BookingRecord[]>;
   onSlotClick: (year: number, month: number, day: number, slot: string, booking: BookingRecord | null) => void;
   userEmail: string | null | undefined;
+  operatingHours: OperatingHours[];
 }) {
   const days = getMonthDays(year, month);
 
@@ -63,17 +76,25 @@ function MonthGrid({
     return date >= min && date <= max;
   };
 
+  const isSlotClosed = (dayType: string, slot: string) => {
+    const hours = operatingHours.find(h => h.dayType === dayType && h.slot === slot);
+    return hours !== undefined && !hours.enabled;
+  };
+
   const renderDay = (d: number, key: number) => {
     const dayBookings = bookingsByDay[d] ?? [];
     const weekend = isWeekend(year, month, d);
     const todayMatch = isToday(d);
     const bookable = canBook(d);
+    const weekendClosed = isSlotClosed("weekend", "morning") && isSlotClosed("weekend", "evening");
+    const weekdayClosed = isSlotClosed("weekday", "default");
+    const allSlotsClosed = weekend ? weekendClosed : weekdayClosed;
 
     const getBooking = (slot: string) => dayBookings.find(b => b.slot === slot) ?? null;
 
     const otherUser = (booking: BookingRecord | null) => booking !== null && booking.email !== userEmail;
 
-    if (!bookable) {
+    if (!bookable || allSlotsClosed) {
       if (weekend) {
         return (
           <div key={key} className="relative aspect-square flex gap-0.5">
@@ -94,6 +115,7 @@ function MonthGrid({
           className="relative aspect-square flex flex-col items-center justify-center rounded-lg text-sm bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600"
         >
           <span>{d}</span>
+          <span className="text-[8px] leading-none mt-0.5 opacity-60">closed</span>
         </div>
       );
     }
@@ -103,29 +125,45 @@ function MonthGrid({
       const pmBooking = getBooking("evening");
       const amOther = otherUser(amBooking);
       const pmOther = otherUser(pmBooking);
+      const amClosed = isSlotClosed("weekend", "morning");
+      const pmClosed = isSlotClosed("weekend", "evening");
       return (
         <div
           key={key}
           className="relative aspect-square flex gap-0.5"
         >
-          <button
-            onClick={() => onSlotClick(year, month, d, "morning", amBooking)}
-            className={`flex flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors flex-1
-              ${amBooking ? (amOther ? "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300" : "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300") : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400"}
-            `}
-          >
-            <span className={`${todayMatch ? "text-blue-600 font-bold" : ""} ${amBooking ? "font-semibold" : ""}`}>{d}</span>
-            <span className="text-[10px] leading-tight">AM</span>
-          </button>
-          <button
-            onClick={() => onSlotClick(year, month, d, "evening", pmBooking)}
-            className={`flex flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors flex-1
-              ${pmBooking ? (pmOther ? "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300" : "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300") : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400"}
-            `}
-          >
-            <span className={`${todayMatch ? "text-blue-600 font-bold" : ""} ${pmBooking ? "font-semibold" : ""}`}>{d}</span>
-            <span className="text-[10px] leading-tight">PM</span>
-          </button>
+          {amClosed ? (
+            <div className="flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600">
+              <span>{d}</span>
+              <span className="text-[10px] leading-tight">AM</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => onSlotClick(year, month, d, "morning", amBooking)}
+              className={`flex flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors flex-1
+                ${amBooking ? (amOther ? "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300" : "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300") : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400"}
+              `}
+            >
+              <span className={`${todayMatch ? "text-blue-600 font-bold" : ""} ${amBooking ? "font-semibold" : ""}`}>{d}</span>
+              <span className="text-[10px] leading-tight">AM</span>
+            </button>
+          )}
+          {pmClosed ? (
+            <div className="flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600">
+              <span>{d}</span>
+              <span className="text-[10px] leading-tight">PM</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => onSlotClick(year, month, d, "evening", pmBooking)}
+              className={`flex flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors flex-1
+                ${pmBooking ? (pmOther ? "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300" : "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300") : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400"}
+              `}
+            >
+              <span className={`${todayMatch ? "text-blue-600 font-bold" : ""} ${pmBooking ? "font-semibold" : ""}`}>{d}</span>
+              <span className="text-[10px] leading-tight">PM</span>
+            </button>
+          )}
         </div>
       );
     }
@@ -133,6 +171,20 @@ function MonthGrid({
     const defaultBooking = getBooking("default");
     const booked = defaultBooking !== null;
     const bookedOther = otherUser(defaultBooking);
+    const weekdaySlotClosed = isSlotClosed("weekday", "default");
+
+    if (weekdaySlotClosed) {
+      return (
+        <div
+          key={key}
+          className="relative aspect-square flex flex-col items-center justify-center rounded-lg text-sm bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600"
+        >
+          <span>{d}</span>
+          <span className="text-[8px] leading-none mt-0.5 opacity-60">closed</span>
+        </div>
+      );
+    }
+
     return (
       <div
         key={key}
@@ -175,6 +227,7 @@ export default function Calendar() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
+  const [operatingHours, setOperatingHours] = useState<OperatingHours[]>([]);
   const [selectedDate, setSelectedDate] = useState<{ year: number; month: number; day: number } | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string>("default");
   const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(null);
@@ -192,13 +245,17 @@ export default function Calendar() {
 
   const fetchMonth = async (y: number, m: number) => {
     const res = await fetch(`/api/bookings?year=${y}&month=${m}`);
-    if (res.ok) return res.json() as Promise<BookingRecord[]>;
-    return [] as BookingRecord[];
+    if (res.ok) {
+      const data = await res.json();
+      return { bookings: data.bookings as BookingRecord[], operatingHours: data.operatingHours as OperatingHours[] };
+    }
+    return { bookings: [] as BookingRecord[], operatingHours: [] as OperatingHours[] };
   };
 
   const loadBookings = async () => {
     const results = await fetchMonth(year, month);
-    setBookings(results);
+    setBookings(results.bookings);
+    setOperatingHours(results.operatingHours);
   };
 
   useEffect(() => { loadBookings(); }, [year, month]);
@@ -237,6 +294,40 @@ export default function Calendar() {
     loadBookings();
   };
 
+  const handleCheckIn = async () => {
+    if (!selectedBooking) return;
+    const res = await fetch("/api/bookings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: selectedBooking.id, action: "checkin" }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      alert(data.error || "Check-in failed");
+      return;
+    }
+    const updated = await res.json();
+    setSelectedBooking(updated);
+    loadBookings();
+  };
+
+  const handleCheckOut = async () => {
+    if (!selectedBooking) return;
+    const res = await fetch("/api/bookings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: selectedBooking.id, action: "checkout" }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      alert(data.error || "Check-out failed");
+      return;
+    }
+    const updated = await res.json();
+    setSelectedBooking(updated);
+    loadBookings();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDate) return;
@@ -260,6 +351,12 @@ export default function Calendar() {
 
     if (res.status === 429) {
       alert("Maximum of 7 bookings per month reached.");
+      return;
+    }
+
+    if (res.status === 403) {
+      const data = await res.json();
+      alert(data.error || "This day is closed for bookings.");
       return;
     }
 
@@ -305,6 +402,9 @@ export default function Calendar() {
           <Link href="/bookings" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
             List view
           </Link>
+          <Link href="/admin" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+            Admin
+          </Link>
           <button onClick={() => signOut()} className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
             Sign out
           </button>
@@ -324,7 +424,7 @@ export default function Calendar() {
           </button>
         </div>
 
-        <MonthGrid year={year} month={month} minDate={minDate} maxDate={maxDate} bookingsByDay={bookingsByDay(year, month)} onSlotClick={openBooking} userEmail={session?.user?.email} />
+        <MonthGrid year={year} month={month} minDate={minDate} maxDate={maxDate} bookingsByDay={bookingsByDay(year, month)} onSlotClick={openBooking} userEmail={session?.user?.email} operatingHours={operatingHours} />
       </div>
       </div>
 
@@ -358,6 +458,18 @@ export default function Calendar() {
                   <p className="text-sm text-zinc-500 dark:text-zinc-400">Phone</p>
                   <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{selectedBooking.phone}</p>
                 </div>
+                {selectedBooking.checkedInAt && (
+                  <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-4 py-3">
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400">Checked in</p>
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{new Date(selectedBooking.checkedInAt).toLocaleTimeString()}</p>
+                  </div>
+                )}
+                {selectedBooking.checkedOutAt && (
+                  <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 px-4 py-3">
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">Checked out</p>
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{new Date(selectedBooking.checkedOutAt).toLocaleTimeString()}</p>
+                  </div>
+                )}
                 <div className="flex gap-3 mt-2">
                   <button
                     onClick={closeBooking}
@@ -365,12 +477,28 @@ export default function Calendar() {
                   >
                     Close
                   </button>
-                  {session?.user?.email === selectedBooking.email && (
+                  {session?.user?.email === selectedBooking.email && !selectedBooking.checkedInAt && (
+                    <button
+                      onClick={handleCheckIn}
+                      className="flex-1 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
+                    >
+                      Check In
+                    </button>
+                  )}
+                  {session?.user?.email === selectedBooking.email && selectedBooking.checkedInAt && !selectedBooking.checkedOutAt && (
+                    <button
+                      onClick={handleCheckOut}
+                      className="flex-1 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
+                    >
+                      Check Out
+                    </button>
+                  )}
+                  {session?.user?.email === selectedBooking.email && !selectedBooking.checkedInAt && (
                     <button
                       onClick={handleDelete}
                       className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 transition-colors"
                     >
-                      Cancel Booking
+                      Cancel
                     </button>
                   )}
                 </div>

@@ -41,6 +41,7 @@ model User {
   emailVerified DateTime?
   image         String?
   phone         String?
+  member        Boolean   @default(false)
   accounts      Account[]
   sessions      Session[]
 }
@@ -54,13 +55,26 @@ model VerificationToken {
 }
 
 model Booking {
-  id        String   @id @default(cuid())
-  date      DateTime
-  slot      String   @default("default")
-  name      String?
-  email     String
-  phone     String?
-  createdAt DateTime @default(now())
+  id           String    @id @default(cuid())
+  date         DateTime
+  slot         String    @default("default")
+  name         String?
+  email        String
+  phone        String?
+  checkedInAt  DateTime?
+  checkedOutAt DateTime?
+  createdAt    DateTime  @default(now())
 
   @@unique([date, email, slot])
+}
+
+model OperatingHours {
+  id        String  @id @default(cuid())
+  dayType   String  // "weekday" | "weekend"
+  slot      String  @default("default") // "default" (weekdays) | "morning" | "evening" (weekends)
+  openTime  String  // "HH:MM" 24h format
+  closeTime String  // "HH:MM" 24h format
+  enabled   Boolean @default(true)
+
+  @@unique([dayType, slot])
 }

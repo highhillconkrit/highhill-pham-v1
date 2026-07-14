@@ -11,6 +11,8 @@ type BookingRecord = {
   name: string | null;
   email: string;
   phone: string | null;
+  checkedInAt: string | null;
+  checkedOutAt: string | null;
 };
 
 function isWeekend(year: number, month: number, day: number) {
@@ -55,12 +57,17 @@ export default function BookingsPage() {
   const maxDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
   useEffect(() => {
-    fetch("/api/bookings").then(r => r.ok && r.json()).then(setBookings);
+    fetch("/api/bookings").then(r => r.ok && r.json()).then(data => {
+      setBookings(data.bookings);
+    });
   }, []);
 
   const loadBookings = async () => {
     const res = await fetch("/api/bookings");
-    if (res.ok) setBookings(await res.json());
+    if (res.ok) {
+      const data = await res.json();
+      setBookings(data.bookings);
+    }
   };
 
   const byDate = bookingsByDate(bookings);
@@ -86,6 +93,40 @@ export default function BookingsPage() {
     loadBookings();
   };
 
+  const handleCheckIn = async () => {
+    if (!selectedBooking) return;
+    const res = await fetch("/api/bookings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: selectedBooking.id, action: "checkin" }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      alert(data.error || "Check-in failed");
+      return;
+    }
+    const updated = await res.json();
+    setSelectedBooking(updated);
+    loadBookings();
+  };
+
+  const handleCheckOut = async () => {
+    if (!selectedBooking) return;
+    const res = await fetch("/api/bookings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: selectedBooking.id, action: "checkout" }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      alert(data.error || "Check-out failed");
+      return;
+    }
+    const updated = await res.json();
+    setSelectedBooking(updated);
+    loadBookings();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDate) return;
@@ -108,6 +149,11 @@ export default function BookingsPage() {
     }
     if (res.status === 429) {
       alert("Maximum of 7 bookings per month reached.");
+      return;
+    }
+    if (res.status === 403) {
+      const data = await res.json();
+      alert(data.error || "This day is closed for bookings.");
       return;
     }
     if (!res.ok) {
@@ -200,7 +246,7 @@ export default function BookingsPage() {
                               <div className="flex gap-2">
                                 {morningBooking ? (
                                   <button onClick={() => openBooking(d.year, d.month, d.day, morningBooking)} className={`rounded px-2 py-1 text-xs font-medium ${morningOwn ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300"}`}>
-                                    AM &middot; {morningBooking.name}
+                                    AM &middot; {morningBooking.name}{morningBooking.checkedInAt ? " \u2713" : ""}
                                   </button>
                                 ) : (
                                   <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
@@ -209,7 +255,7 @@ export default function BookingsPage() {
                                 )}
                                 {eveningBooking ? (
                                   <button onClick={() => openBooking(d.year, d.month, d.day, eveningBooking)} className={`rounded px-2 py-1 text-xs font-medium ${eveningOwn ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300"}`}>
-                                    PM &middot; {eveningBooking.name}
+                                    PM &middot; {eveningBooking.name}{eveningBooking.checkedInAt ? " \u2713" : ""}
                                   </button>
                                 ) : (
                                   <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
@@ -233,7 +279,7 @@ export default function BookingsPage() {
                           <td className="py-2">
                             {defaultBooking ? (
                               <button onClick={() => openBooking(d.year, d.month, d.day, defaultBooking)} className={`rounded px-2 py-1 text-xs font-medium ${defaultOwn ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300"}`}>
-                                Booked &middot; {defaultBooking.name}
+                                Booked &middot; {defaultBooking.name}{defaultBooking.checkedInAt ? " \u2713" : ""}
                               </button>
                             ) : (
                               <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
@@ -282,6 +328,18 @@ export default function BookingsPage() {
                   <p className="text-sm text-zinc-500 dark:text-zinc-400">Phone</p>
                   <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{selectedBooking.phone}</p>
                 </div>
+                {selectedBooking.checkedInAt && (
+                  <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-4 py-3">
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400">Checked in</p>
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{new Date(selectedBooking.checkedInAt).toLocaleTimeString()}</p>
+                  </div>
+                )}
+                {selectedBooking.checkedOutAt && (
+                  <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 px-4 py-3">
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">Checked out</p>
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{new Date(selectedBooking.checkedOutAt).toLocaleTimeString()}</p>
+                  </div>
+                )}
                 <div className="flex gap-3 mt-2">
                   <button
                     onClick={closeBooking}
@@ -289,12 +347,28 @@ export default function BookingsPage() {
                   >
                     Close
                   </button>
-                  {session?.user?.email === selectedBooking.email && (
+                  {session?.user?.email === selectedBooking.email && !selectedBooking.checkedInAt && (
+                    <button
+                      onClick={handleCheckIn}
+                      className="flex-1 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
+                    >
+                      Check In
+                    </button>
+                  )}
+                  {session?.user?.email === selectedBooking.email && selectedBooking.checkedInAt && !selectedBooking.checkedOutAt && (
+                    <button
+                      onClick={handleCheckOut}
+                      className="flex-1 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
+                    >
+                      Check Out
+                    </button>
+                  )}
+                  {session?.user?.email === selectedBooking.email && !selectedBooking.checkedInAt && (
                     <button
                       onClick={handleDelete}
                       className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 transition-colors"
                     >
-                      Cancel Booking
+                      Cancel
                     </button>
                   )}
                 </div>
