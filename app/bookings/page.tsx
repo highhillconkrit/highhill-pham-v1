@@ -63,6 +63,7 @@ export default function BookingsPage() {
   const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(null);
   const [form, setForm] = useState({ email: "" });
   const [operatingHours, setOperatingHours] = useState<OperatingHoursRecord[]>([]);
+  const [urgentDays, setUrgentDays] = useState<Set<string>>(new Set());
 
   const today = new Date();
   const minDate = new Date(today.getFullYear(), today.getMonth() - 1, 25);
@@ -71,6 +72,7 @@ export default function BookingsPage() {
   useEffect(() => {
     fetch("/api/bookings").then(r => r.ok && r.json()).then(data => {
       setBookings(data.bookings);
+      setUrgentDays(new Set((data.urgentDays ?? []).map((u: { date: string; slot: string }) => `${u.date}_${u.slot}`)));
     });
     fetch("/api/admin/hours").then(r => r.ok && r.json()).then(data => {
       setOperatingHours(data);
@@ -281,6 +283,7 @@ export default function BookingsPage() {
                       const dayBookings = byDate[key] ?? [];
                       const weekend = isWeekend(d.year, d.month, d.day);
                       const isToday = d.year === today.getFullYear() && d.month === today.getMonth() && d.day === today.getDate();
+                      const dateStr = `${d.year}-${String(d.month + 1).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
 
                       if (weekend) {
                         const morningBooking = dayBookings.find(b => b.slot === "morning") ?? null;
@@ -288,6 +291,8 @@ export default function BookingsPage() {
 
                         const morningOwn = morningBooking?.email === session.user.email;
                         const eveningOwn = eveningBooking?.email === session.user.email;
+                        const morningUrgent = urgentDays.has(`${dateStr}_morning`);
+                        const eveningUrgent = urgentDays.has(`${dateStr}_evening`);
 
                         return (
                           <tr key={key} className="border-b border-zinc-100 dark:border-zinc-800 last:border-0">
@@ -297,20 +302,24 @@ export default function BookingsPage() {
                             <td className="py-2">
                               <div className="flex gap-2">
                                 {morningBooking ? (
-                                  <button onClick={() => openBooking(d.year, d.month, d.day, morningBooking)} className={`rounded px-2 py-1 text-xs font-medium ${morningOwn ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300"}`}>
+                                  <button onClick={() => openBooking(d.year, d.month, d.day, morningBooking)} className={`relative rounded px-2 py-1 text-xs font-medium ${morningOwn ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300"}`}>
+                                    {morningUrgent && <svg className="absolute -top-1 -left-1 w-3 h-3 text-yellow-500" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/></svg>}
                                     AM &middot; {morningBooking.name}{morningBooking.checkedInAt ? " \u2713" : ""}
                                   </button>
                                 ) : (
-                                  <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                  <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="relative rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                    {morningUrgent && <svg className="absolute -top-1 -left-1 w-3 h-3 text-yellow-500" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/></svg>}
                                     AM &middot; Free
                                   </button>
                                 )}
                                 {eveningBooking ? (
-                                  <button onClick={() => openBooking(d.year, d.month, d.day, eveningBooking)} className={`rounded px-2 py-1 text-xs font-medium ${eveningOwn ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300"}`}>
+                                  <button onClick={() => openBooking(d.year, d.month, d.day, eveningBooking)} className={`relative rounded px-2 py-1 text-xs font-medium ${eveningOwn ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300"}`}>
+                                    {eveningUrgent && <svg className="absolute -top-1 -left-1 w-3 h-3 text-yellow-500" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/></svg>}
                                     PM &middot; {eveningBooking.name}{eveningBooking.checkedInAt ? " \u2713" : ""}
                                   </button>
                                 ) : (
-                                  <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                  <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="relative rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                    {eveningUrgent && <svg className="absolute -top-1 -left-1 w-3 h-3 text-yellow-500" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/></svg>}
                                     PM &middot; Free
                                   </button>
                                 )}
@@ -322,6 +331,7 @@ export default function BookingsPage() {
 
                       const defaultBooking = dayBookings.find(b => b.slot === "default") ?? null;
                       const defaultOwn = defaultBooking?.email === session.user.email;
+                      const weekdayUrgent = urgentDays.has(`${dateStr}_default`);
 
                       return (
                         <tr key={key} className="border-b border-zinc-100 dark:border-zinc-800 last:border-0">
@@ -330,11 +340,13 @@ export default function BookingsPage() {
                           </td>
                           <td className="py-2">
                             {defaultBooking ? (
-                              <button onClick={() => openBooking(d.year, d.month, d.day, defaultBooking)} className={`rounded px-2 py-1 text-xs font-medium ${defaultOwn ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300"}`}>
+                              <button onClick={() => openBooking(d.year, d.month, d.day, defaultBooking)} className={`relative rounded px-2 py-1 text-xs font-medium ${defaultOwn ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300"}`}>
+                                {weekdayUrgent && <svg className="absolute -top-1 -left-1 w-3 h-3 text-yellow-500" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/></svg>}
                                 Booked &middot; {defaultBooking.name}{defaultBooking.checkedInAt ? " \u2713" : ""}
                               </button>
                             ) : (
-                              <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                              <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="relative rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                {weekdayUrgent && <svg className="absolute -top-1 -left-1 w-3 h-3 text-yellow-500" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/></svg>}
                                 Free
                               </button>
                             )}
