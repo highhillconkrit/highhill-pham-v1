@@ -320,7 +320,7 @@ function MonthGrid({
   );
 }
 
-export default function Calendar() {
+export default function Calendar({ onSwitchView }: { onSwitchView?: (view: "list" | "calendar") => void }) {
   const today = new Date();
   const { data: session } = useSession();
   const [year, setYear] = useState(today.getFullYear());
@@ -364,9 +364,10 @@ export default function Calendar() {
   const bookingsByDay = (targetYear: number, targetMonth: number) => {
     const map: Record<number, BookingRecord[]> = {};
     for (const b of bookings) {
-      const d = new Date(b.date);
-      if (d.getFullYear() === targetYear && d.getMonth() === targetMonth) {
-        const day = d.getDate();
+      const iso = b.date.endsWith("Z") ? b.date : b.date + "Z";
+      const d = new Date(iso);
+      if (d.getUTCFullYear() === targetYear && d.getUTCMonth() === targetMonth) {
+        const day = d.getUTCDate();
         if (!map[day]) map[day] = [];
         map[day].push(b);
       }
@@ -500,9 +501,15 @@ export default function Calendar() {
           <Link href="/profile" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
             Profile
           </Link>
-          <Link href="/bookings" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
-            List view
-          </Link>
+          {onSwitchView ? (
+            <button onClick={() => onSwitchView("list")} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+              List view
+            </button>
+          ) : (
+            <Link href="/bookings" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+              List view
+            </Link>
+          )}
           <Link href="/admin" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
             Admin
           </Link>
@@ -604,8 +611,8 @@ export default function Calendar() {
                   )}
                 </div>
                 {(() => {
-                  const d = new Date(selectedBooking.date);
-                  const weekend = isWeekend(d.getFullYear(), d.getMonth(), d.getDate());
+                  const d = new Date(selectedBooking.date.endsWith("Z") ? selectedBooking.date : selectedBooking.date + "Z");
+                  const weekend = isWeekend(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
                   const dayType = weekend ? "weekend" : "weekday";
                   const slot = selectedBooking.slot === "default" ? "default" : selectedBooking.slot;
                   const hours = operatingHours.find(h => h.dayType === dayType && (slot === "default" ? h.slot === "default" : h.slot === slot));

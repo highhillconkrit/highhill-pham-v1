@@ -82,8 +82,6 @@ export default function AdminPage() {
   const [urgentDays, setUrgentDays] = useState<{ id: string; date: string; slot: string; note: string | null }[]>([]);
   const [urgentDate, setUrgentDate] = useState(() => today.toISOString().slice(0, 10));
 
-  const toLocalDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
   const loadUrgent = async () => {
     try {
       const res = await fetch("/api/admin/urgent");
@@ -91,7 +89,7 @@ export default function AdminPage() {
         const data = await res.json();
         setUrgentDays(data.map((u: { id: string; date: string; slot: string; note: string | null }) => ({
           ...u,
-          date: toLocalDateStr(new Date(u.date)),
+          date: u.date.slice(0, 10),
         })));
       }
     } catch {}

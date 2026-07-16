@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
 import { getOperatingHours, getHoursForSlot, isWithinOperatingHours } from "@/app/lib/admin";
+import { toDateKey, yearMonthRange } from "@/app/lib/dateUtils";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -11,9 +12,8 @@ export async function GET(request: NextRequest) {
 
   let where = {};
   if (!isNaN(year) && !isNaN(month)) {
-    const start = new Date(year, month, 1);
-    const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
-    where = { date: { gte: start, lte: end } };
+    const range = yearMonthRange(year, month);
+    where = { date: { gte: range.start, lte: range.end } };
   }
 
   const bookings = await prisma.booking.findMany({
@@ -44,10 +44,7 @@ export async function GET(request: NextRequest) {
   let urgentDays: { date: string; slot: string }[] = [];
   try {
     const rows = await prisma.urgentDay.findMany();
-    urgentDays = rows.map(u => {
-      const d = u.date;
-      return { date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`, slot: u.slot };
-    });
+    urgentDays = rows.map(u => ({ date: toDateKey(u.date), slot: u.slot }));
   } catch {
     // UrgentDay table may not exist yet
   }
@@ -75,7 +72,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const date = new Date(year, month, day);
+  const date = new Date(Date.UTC(year, month, day));
   const bookingSlot = slot ?? "default";
 
   const dayOfWeek = date.getDay();
@@ -101,10 +98,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "A booking with this email already exists on this date for this slot" }, { status: 409 });
   }
 
-  const monthStart = new Date(year, month, 1);
-  const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  const monthRange = yearMonthRange(year, month);
   const monthCount = await prisma.booking.count({
-    where: { email, date: { gte: monthStart, lte: monthEnd } },
+    where: { email, date: { gte: monthRange.start, lte: monthRange.end } },
   });
 
   if (monthCount >= 7) {
@@ -170,14 +166,14 @@ export async function PATCH(request: NextRequest) {
 
   const now = new Date();
   const bookingDate = new Date(booking.date);
-  const dayOfWeek = bookingDate.getDay();
+  const dayOfWeek = bookingDate.getUTCDay();
   const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
   const dayType = isWeekendDay ? "weekend" : "weekday";
 
   const isSameDay =
-    now.getFullYear() === bookingDate.getFullYear() &&
-    now.getMonth() === bookingDate.getMonth() &&
-    now.getDate() === bookingDate.getDate();
+    now.getUTCFullYear() === bookingDate.getUTCFullYear() &&
+    now.getUTCMonth() === bookingDate.getUTCMonth() &&
+    now.getUTCDate() === bookingDate.getUTCDate();
 
   if (!isSameDay) {
     return NextResponse.json({ error: "You can only check in on the booking day" }, { status: 403 });

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
 import { isAdmin } from "@/app/lib/admin";
+import { yearMonthRange, toDateKey } from "@/app/lib/dateUtils";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -18,9 +19,8 @@ export async function GET(request: NextRequest) {
   if (year && month) {
     const y = parseInt(year);
     const m = parseInt(month);
-    const start = new Date(y, m, 1);
-    const end = new Date(y, m + 1, 0, 23, 59, 59, 999);
-    where.date = { gte: start, lte: end };
+    const range = yearMonthRange(y, m);
+    where.date = { gte: range.start, lte: range.end };
   }
 
   const bookings = await prisma.booking.findMany({
@@ -37,15 +37,13 @@ export async function GET(request: NextRequest) {
 
   const urgentDates = await prisma.urgentDay.findMany();
   const urgentSet = new Set(urgentDates.map((u) => {
-    const d = u.date;
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const dateStr = toDateKey(u.date);
     return `${dateStr}_${u.slot}`;
   }));
 
   const header = "Date,Slot,Name,Email,Phone,Member,Urgent,Checked In,Checked Out";
   const rows = bookings.map((b) => {
-    const d = new Date(b.date);
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const dateStr = toDateKey(b.date);
     const u = userMap[b.email];
     const name = (u?.name ?? b.name ?? "").replace(/"/g, '""');
     const email = b.email;

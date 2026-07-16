@@ -47,15 +47,16 @@ function getAllDates(minDate: Date, maxDate: Date) {
 function bookingsByDate(bookings: BookingRecord[]) {
   const map: Record<string, BookingRecord[]> = {};
   for (const b of bookings) {
-    const d = new Date(b.date);
-    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const iso = b.date.endsWith("Z") ? b.date : b.date + "Z";
+    const d = new Date(iso);
+    const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
     if (!map[key]) map[key] = [];
     map[key].push(b);
   }
   return map;
 }
 
-export default function BookingsPage() {
+export default function BookingsPage({ onSwitchView }: { onSwitchView?: (view: "list" | "calendar") => void }) {
   const { data: session } = useSession();
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [selectedDate, setSelectedDate] = useState<{ year: number; month: number; day: number } | null>(null);
@@ -215,9 +216,15 @@ export default function BookingsPage() {
       <div className="w-full max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Bookings</h1>
-          <Link href="/" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
-            Calendar view
-          </Link>
+          {onSwitchView ? (
+            <button onClick={() => onSwitchView("calendar")} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+              Calendar view
+            </button>
+          ) : (
+            <Link href="/" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+              Calendar view
+            </Link>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -241,8 +248,8 @@ export default function BookingsPage() {
                           .flatMap(d => byDate[`${d.year}-${d.month}-${d.day}`] ?? [])
                           .filter(b => b.email === session?.user?.email);
                         const events = monthBookings.map(b => {
-                          const d = new Date(b.date);
-                          const weekend = isWeekend(d.getFullYear(), d.getMonth(), d.getDate());
+                          const d = new Date(b.date.endsWith("Z") ? b.date : b.date + "Z");
+                          const weekend = isWeekend(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
                           const dayType = weekend ? "weekend" : "weekday";
                           const slot = b.slot === "default" ? "default" : b.slot;
                           const hours = operatingHours.find(h => h.dayType === dayType && (slot === "default" ? h.slot === "default" : h.slot === slot));
@@ -437,8 +444,8 @@ export default function BookingsPage() {
                   )}
                 </div>
                 {(() => {
-                  const d = new Date(selectedBooking.date);
-                  const weekend = isWeekend(d.getFullYear(), d.getMonth(), d.getDate());
+                  const d = new Date(selectedBooking.date.endsWith("Z") ? selectedBooking.date : selectedBooking.date + "Z");
+                  const weekend = isWeekend(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
                   const dayType = weekend ? "weekend" : "weekday";
                   const slot = selectedBooking.slot === "default" ? "default" : selectedBooking.slot;
                   const hours = operatingHours.find(h => h.dayType === dayType && (slot === "default" ? h.slot === "default" : h.slot === slot));

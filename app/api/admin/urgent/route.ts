@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
 import { isAdmin } from "@/app/lib/admin";
+import { dateKeyRange } from "@/app/lib/dateUtils";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -31,12 +32,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "date is required" }, { status: 400 });
   }
 
-  const d = new Date(date);
-  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const urgentSlot = slot ?? "default";
 
+  const range = dateKeyRange(date);
+
   const existing = await prisma.urgentDay.findFirst({
-    where: { date: { gte: start, lte: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999) }, slot: urgentSlot },
+    where: { date: { gte: range.start, lte: range.end }, slot: urgentSlot },
   });
 
   if (existing) {
@@ -44,6 +45,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ urgent: false });
   }
 
-  await prisma.urgentDay.create({ data: { date: start, slot: urgentSlot, note: note ?? null } });
+  await prisma.urgentDay.create({ data: { date: range.start, slot: urgentSlot, note: note ?? null } });
   return NextResponse.json({ urgent: true });
 }
