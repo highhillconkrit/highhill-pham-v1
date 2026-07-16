@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import Link from "next/link";
+import { buildGoogleCalendarUrl } from "@/app/lib/gcal";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -52,6 +53,7 @@ function MonthGrid({
   onSlotClick,
   userEmail,
   operatingHours,
+  urgentDays,
 }: {
   year: number;
   month: number;
@@ -61,6 +63,7 @@ function MonthGrid({
   onSlotClick: (year: number, month: number, day: number, slot: string, booking: BookingRecord | null) => void;
   userEmail: string | null | undefined;
   operatingHours: OperatingHours[];
+  urgentDays: Set<string>;
 }) {
   const days = getMonthDays(year, month);
 
@@ -81,6 +84,25 @@ function MonthGrid({
     return hours !== undefined && !hours.enabled;
   };
 
+  const availableDays = days.filter((d): d is number => {
+    if (d === null) return false;
+    if (!canBook(d)) return false;
+    const weekend = isWeekend(year, month, d);
+    if (weekend) {
+      const amClosed = isSlotClosed("weekend", "morning");
+      const pmClosed = isSlotClosed("weekend", "evening");
+      if (amClosed && pmClosed) return false;
+      const dayBookings = bookingsByDay[d] ?? [];
+      const amBooked = !amClosed && dayBookings.some(b => b.slot === "morning");
+      const pmBooked = !pmClosed && dayBookings.some(b => b.slot === "evening");
+      return !amBooked || !pmBooked;
+    }
+    const allClosed = isSlotClosed("weekday", "default");
+    if (allClosed) return false;
+    const dayBookings = bookingsByDay[d] ?? [];
+    return !dayBookings.some(b => b.slot === "default");
+  });
+
   const renderDay = (d: number, key: number) => {
     const dayBookings = bookingsByDay[d] ?? [];
     const weekend = isWeekend(year, month, d);
@@ -89,6 +111,7 @@ function MonthGrid({
     const weekendClosed = isSlotClosed("weekend", "morning") && isSlotClosed("weekend", "evening");
     const weekdayClosed = isSlotClosed("weekday", "default");
     const allSlotsClosed = weekend ? weekendClosed : weekdayClosed;
+    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
     const getBooking = (slot: string) => dayBookings.find(b => b.slot === slot) ?? null;
 
@@ -127,39 +150,61 @@ function MonthGrid({
       const pmOther = otherUser(pmBooking);
       const amClosed = isSlotClosed("weekend", "morning");
       const pmClosed = isSlotClosed("weekend", "evening");
+      const amUrgent = urgentDays.has(`${dateStr}_morning`);
+      const pmUrgent = urgentDays.has(`${dateStr}_evening`);
       return (
         <div
           key={key}
           className="relative aspect-square flex gap-0.5"
         >
           {amClosed ? (
-            <div className="flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600">
+            <div className="relative flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600">
+              {amUrgent && (
+                <svg className="absolute top-0.5 left-0.5 w-4 h-4 text-yellow-500 z-10" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/>
+                </svg>
+              )}
               <span>{d}</span>
               <span className="text-[10px] leading-tight">AM</span>
             </div>
           ) : (
             <button
               onClick={() => onSlotClick(year, month, d, "morning", amBooking)}
-              className={`flex flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors flex-1
+              className={`relative flex flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors flex-1
                 ${amBooking ? (amOther ? "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300" : "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300") : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400"}
               `}
             >
+              {amUrgent && (
+                <svg className="absolute top-0.5 left-0.5 w-4 h-4 text-yellow-500 z-10" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/>
+                </svg>
+              )}
               <span className={`${todayMatch ? "text-blue-600 font-bold" : ""} ${amBooking ? "font-semibold" : ""}`}>{d}</span>
               <span className="text-[10px] leading-tight">AM</span>
             </button>
           )}
           {pmClosed ? (
-            <div className="flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600">
+            <div className="relative flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600">
+              {pmUrgent && (
+                <svg className="absolute top-0.5 left-0.5 w-4 h-4 text-yellow-500 z-10" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/>
+                </svg>
+              )}
               <span>{d}</span>
               <span className="text-[10px] leading-tight">PM</span>
             </div>
           ) : (
             <button
               onClick={() => onSlotClick(year, month, d, "evening", pmBooking)}
-              className={`flex flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors flex-1
+              className={`relative flex flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors flex-1
                 ${pmBooking ? (pmOther ? "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300" : "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300") : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400"}
               `}
             >
+              {pmUrgent && (
+                <svg className="absolute top-0.5 left-0.5 w-4 h-4 text-yellow-500 z-10" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/>
+                </svg>
+              )}
               <span className={`${todayMatch ? "text-blue-600 font-bold" : ""} ${pmBooking ? "font-semibold" : ""}`}>{d}</span>
               <span className="text-[10px] leading-tight">PM</span>
             </button>
@@ -198,24 +243,78 @@ function MonthGrid({
       >
         <span className={`${booked ? "font-semibold" : ""}`}>{d}</span>
         {booked && <span className="text-[8px] leading-none mt-0.5 opacity-75">booked</span>}
+        {urgentDays.has(`${dateStr}_default`) && (
+          <svg className="absolute top-0.5 right-0.5 w-4 h-4 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/>
+          </svg>
+        )}
       </div>
     );
   };
 
   return (
-    <div className="flex-1 min-w-0">
-      <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-        {new Date(year, month).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-      </h2>
-      <div className="grid grid-cols-7 gap-1 mb-2">
-        {WEEKDAYS.map(day => (
-          <div key={day} className="text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 py-1">
-            {day}
-          </div>
-        ))}
+    <div className="flex-1 min-w-0 flex gap-6">
+      <div className="flex-1 min-w-0">
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
+          {new Date(year, month).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+        </h2>
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {WEEKDAYS.map(day => (
+            <div key={day} className="text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 py-1">
+              {day}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {days.map((d, i) => (d === null ? <div key={i} /> : renderDay(d, i)))}
+        </div>
       </div>
-      <div className="grid grid-cols-7 gap-1">
-        {days.map((d, i) => (d === null ? <div key={i} /> : renderDay(d, i)))}
+
+      <div className="w-48 shrink-0 hidden lg:block">
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">Available Days</h3>
+        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-3 max-h-[420px] overflow-y-auto">
+          {availableDays.length === 0 ? (
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">No available days</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {availableDays.map(d => {
+                const weekend = isWeekend(year, month, d);
+                const dayBookings = bookingsByDay[d] ?? [];
+                const date = new Date(year, month, d);
+                const label = date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                return (
+                  <button
+                    key={d}
+                    onClick={() => {
+                      if (weekend) {
+                        const amBooked = dayBookings.some(b => b.slot === "morning");
+                        const pmBooked = dayBookings.some(b => b.slot === "evening");
+                        if (!amBooked) onSlotClick(year, month, d, "morning", null);
+                        else onSlotClick(year, month, d, "evening", null);
+                      } else {
+                        onSlotClick(year, month, d, "default", null);
+                      }
+                    }}
+                    className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors text-left
+                      ${isToday(d)
+                        ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                        : "bg-zinc-50 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400"
+                      }`}
+                  >
+                    <span>{label}</span>
+                    {weekend ? (
+                      <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                        {!dayBookings.some(b => b.slot === "morning") ? "AM" : "PM"}
+                      </span>
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -228,6 +327,7 @@ export default function Calendar() {
   const [month, setMonth] = useState(today.getMonth());
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [operatingHours, setOperatingHours] = useState<OperatingHours[]>([]);
+  const [urgentDays, setUrgentDays] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState<{ year: number; month: number; day: number } | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string>("default");
   const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(null);
@@ -247,15 +347,16 @@ export default function Calendar() {
     const res = await fetch(`/api/bookings?year=${y}&month=${m}`);
     if (res.ok) {
       const data = await res.json();
-      return { bookings: data.bookings as BookingRecord[], operatingHours: data.operatingHours as OperatingHours[] };
+      return { bookings: data.bookings as BookingRecord[], operatingHours: data.operatingHours as OperatingHours[], urgentDays: (data.urgentDays ?? []) as { date: string; slot: string }[] };
     }
-    return { bookings: [] as BookingRecord[], operatingHours: [] as OperatingHours[] };
+    return { bookings: [] as BookingRecord[], operatingHours: [] as OperatingHours[], urgentDays: [] as { date: string; slot: string }[] };
   };
 
   const loadBookings = async () => {
     const results = await fetchMonth(year, month);
     setBookings(results.bookings);
     setOperatingHours(results.operatingHours);
+    setUrgentDays(new Set(results.urgentDays.map(u => `${u.date}_${u.slot}`)));
   };
 
   useEffect(() => { loadBookings(); }, [year, month]);
@@ -391,7 +492,7 @@ export default function Calendar() {
 
   return (
     <>
-      <div className="w-full max-w-3xl mx-auto">
+      <div className="w-full max-w-5xl mx-auto">
         <div className="flex items-center justify-end mb-4 gap-4">
           <span className="text-sm text-zinc-600 dark:text-zinc-400">
             {session.user.email}
@@ -424,7 +525,7 @@ export default function Calendar() {
           </button>
         </div>
 
-        <MonthGrid year={year} month={month} minDate={minDate} maxDate={maxDate} bookingsByDay={bookingsByDay(year, month)} onSlotClick={openBooking} userEmail={session?.user?.email} operatingHours={operatingHours} />
+        <MonthGrid year={year} month={month} minDate={minDate} maxDate={maxDate} bookingsByDay={bookingsByDay(year, month)} onSlotClick={openBooking} userEmail={session?.user?.email} operatingHours={operatingHours} urgentDays={urgentDays} />
       </div>
       </div>
 
@@ -502,6 +603,34 @@ export default function Calendar() {
                     </button>
                   )}
                 </div>
+                {(() => {
+                  const d = new Date(selectedBooking.date);
+                  const weekend = isWeekend(d.getFullYear(), d.getMonth(), d.getDate());
+                  const dayType = weekend ? "weekend" : "weekday";
+                  const slot = selectedBooking.slot === "default" ? "default" : selectedBooking.slot;
+                  const hours = operatingHours.find(h => h.dayType === dayType && (slot === "default" ? h.slot === "default" : h.slot === slot));
+                  const openTime = hours?.openTime ?? (slot === "morning" ? "09:00" : "09:00");
+                  const closeTime = hours?.closeTime ?? (slot === "evening" ? "17:00" : "17:00");
+                  const url = buildGoogleCalendarUrl({
+                    title: `High Hill Pham - ${selectedBooking.slot === "default" ? "Booking" : selectedBooking.slot.charAt(0).toUpperCase() + selectedBooking.slot.slice(1)}`,
+                    date: selectedBooking.date,
+                    slot: selectedBooking.slot,
+                    name: selectedBooking.name ?? undefined,
+                    openTime,
+                    closeTime,
+                  });
+                  return (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 flex items-center justify-center gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                      Add to Google Calendar
+                    </a>
+                  );
+                })()}
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">

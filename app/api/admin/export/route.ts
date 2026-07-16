@@ -35,7 +35,14 @@ export async function GET(request: NextRequest) {
   });
   const userMap = Object.fromEntries(users.map((u) => [u.email, u]));
 
-  const header = "Date,Slot,Name,Email,Phone,Member,Checked In,Checked Out";
+  const urgentDates = await prisma.urgentDay.findMany();
+  const urgentSet = new Set(urgentDates.map((u) => {
+    const d = u.date;
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return `${dateStr}_${u.slot}`;
+  }));
+
+  const header = "Date,Slot,Name,Email,Phone,Member,Urgent,Checked In,Checked Out";
   const rows = bookings.map((b) => {
     const d = new Date(b.date);
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -44,9 +51,10 @@ export async function GET(request: NextRequest) {
     const email = b.email;
     const phone = (u?.phone ?? b.phone ?? "").replace(/"/g, '""');
     const member = u?.member ? "Yes" : "No";
+    const urgent = urgentSet.has(`${dateStr}_${b.slot}`) ? "Yes" : "No";
     const checkedIn = b.checkedInAt ? new Date(b.checkedInAt).toLocaleString() : "";
     const checkedOut = b.checkedOutAt ? new Date(b.checkedOutAt).toLocaleString() : "";
-    return `${dateStr},"${b.slot}","${name}","${email}","${phone}",${member},"${checkedIn}","${checkedOut}"`;
+    return `${dateStr},"${b.slot}","${name}","${email}","${phone}",${member},${urgent},"${checkedIn}","${checkedOut}"`;
   });
 
   const csv = [header, ...rows].join("\n");

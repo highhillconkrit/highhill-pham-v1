@@ -41,7 +41,18 @@ export async function GET(request: NextRequest) {
     // OperatingHours table may not exist yet
   }
 
-  return NextResponse.json({ bookings: enriched, operatingHours: hours });
+  let urgentDays: { date: string; slot: string }[] = [];
+  try {
+    const rows = await prisma.urgentDay.findMany();
+    urgentDays = rows.map(u => {
+      const d = u.date;
+      return { date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`, slot: u.slot };
+    });
+  } catch {
+    // UrgentDay table may not exist yet
+  }
+
+  return NextResponse.json({ bookings: enriched, operatingHours: hours, urgentDays });
 }
 
 export async function POST(request: NextRequest) {
@@ -162,6 +173,15 @@ export async function PATCH(request: NextRequest) {
   const dayOfWeek = bookingDate.getDay();
   const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
   const dayType = isWeekendDay ? "weekend" : "weekday";
+
+  const isSameDay =
+    now.getFullYear() === bookingDate.getFullYear() &&
+    now.getMonth() === bookingDate.getMonth() &&
+    now.getDate() === bookingDate.getDate();
+
+  if (!isSameDay) {
+    return NextResponse.json({ error: "You can only check in on the booking day" }, { status: 403 });
+  }
 
   let hoursEnabled = true;
   try {

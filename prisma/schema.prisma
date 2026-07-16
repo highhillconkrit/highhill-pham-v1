@@ -78,3 +78,13 @@ model OperatingHours {
 
   @@unique([dayType, slot])
 }
+
+model UrgentDay {
+  id        String   @id @default(cuid())
+  date      DateTime
+  slot      String   @default("default") // "default" (weekdays) | "morning" | "evening" (weekends)
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([date, slot])
+}

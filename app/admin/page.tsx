@@ -79,6 +79,23 @@ export default function AdminPage() {
   const today = new Date();
   const [exportYear, setExportYear] = useState(today.getFullYear());
   const [exportMonth, setExportMonth] = useState(today.getMonth());
+  const [urgentDays, setUrgentDays] = useState<{ id: string; date: string; slot: string; note: string | null }[]>([]);
+  const [urgentDate, setUrgentDate] = useState(() => today.toISOString().slice(0, 10));
+
+  const toLocalDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  const loadUrgent = async () => {
+    try {
+      const res = await fetch("/api/admin/urgent");
+      if (res.ok) {
+        const data = await res.json();
+        setUrgentDays(data.map((u: { id: string; date: string; slot: string; note: string | null }) => ({
+          ...u,
+          date: toLocalDateStr(new Date(u.date)),
+        })));
+      }
+    } catch {}
+  };
 
   useEffect(() => {
     if (!session?.user?.email) return;
@@ -104,6 +121,7 @@ export default function AdminPage() {
           if (entry.dayType === "weekend" && entry.slot === "evening") setWeekendEvening(config);
         }
       });
+    loadUrgent();
   }, [session]);
 
   if (!session?.user) {
@@ -137,6 +155,21 @@ export default function AdminPage() {
       </div>
     );
   }
+
+  const handleUrgentToggle = async (slot: string = "default") => {
+    const res = await fetch("/api/admin/urgent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: urgentDate, slot }),
+    });
+    if (res.ok) {
+      await loadUrgent();
+    }
+  };
+
+  const isUrgentDate = (dateStr: string, slot: string = "default") => {
+    return urgentDays.some(ud => ud.date === dateStr && ud.slot === slot);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,6 +255,73 @@ export default function AdminPage() {
               Download CSV
             </button>
           </div>
+        </div>
+
+        <div className="mt-6 bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-6">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Urgent Days</h2>
+          {(() => {
+            const d = new Date(urgentDate + "T00:00:00");
+            const dow = d.getDay();
+            const isWeekend = dow === 0 || dow === 6;
+            return (
+              <div className="flex items-end gap-3 mb-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-zinc-500 dark:text-zinc-400">Date</label>
+                  <input
+                    type="date"
+                    value={urgentDate}
+                    onChange={e => setUrgentDate(e.target.value)}
+                    className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                {isWeekend ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleUrgentToggle("morning")}
+                      className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                        isUrgentDate(urgentDate, "morning")
+                          ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700"
+                          : "bg-red-600 text-white hover:bg-red-700"
+                      }`}
+                    >
+                      {isUrgentDate(urgentDate, "morning") ? "Unmark AM" : "Mark AM"}
+                    </button>
+                    <button
+                      onClick={() => handleUrgentToggle("evening")}
+                      className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                        isUrgentDate(urgentDate, "evening")
+                          ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700"
+                          : "bg-red-600 text-white hover:bg-red-700"
+                      }`}
+                    >
+                      {isUrgentDate(urgentDate, "evening") ? "Unmark PM" : "Mark PM"}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleUrgentToggle("default")}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                      isUrgentDate(urgentDate, "default")
+                        ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700"
+                        : "bg-red-600 text-white hover:bg-red-700"
+                    }`}
+                  >
+                    {isUrgentDate(urgentDate, "default") ? "Remove Urgent" : "Mark Urgent"}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+          {urgentDays.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {urgentDays.map(ud => (
+                <span key={ud.id} className="inline-flex items-center gap-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-3 py-1 text-xs font-medium">
+                  {new Date(ud.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  {ud.slot !== "default" && <span className="ml-0.5 opacity-70">{ud.slot === "morning" ? "AM" : "PM"}</span>}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

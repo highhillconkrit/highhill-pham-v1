@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useSession, signIn } from "next-auth/react";
 import Link from "next/link";
+import { buildGoogleCalendarUrl } from "@/app/lib/gcal";
+import { buildIcsFile } from "@/app/lib/ics";
 
 type BookingRecord = {
   id: string;
@@ -13,6 +15,15 @@ type BookingRecord = {
   phone: string | null;
   checkedInAt: string | null;
   checkedOutAt: string | null;
+};
+
+type OperatingHoursRecord = {
+  id: string;
+  dayType: string;
+  slot: string;
+  openTime: string;
+  closeTime: string;
+  enabled: boolean;
 };
 
 function isWeekend(year: number, month: number, day: number) {
@@ -51,6 +62,7 @@ export default function BookingsPage() {
   const [selectedSlot, setSelectedSlot] = useState<string>("default");
   const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(null);
   const [form, setForm] = useState({ email: "" });
+  const [operatingHours, setOperatingHours] = useState<OperatingHoursRecord[]>([]);
 
   const today = new Date();
   const minDate = new Date(today.getFullYear(), today.getMonth() - 1, 25);
@@ -60,6 +72,9 @@ export default function BookingsPage() {
     fetch("/api/bookings").then(r => r.ok && r.json()).then(data => {
       setBookings(data.bookings);
     });
+    fetch("/api/admin/hours").then(r => r.ok && r.json()).then(data => {
+      setOperatingHours(data);
+    }).catch(() => {});
   }, []);
 
   const loadBookings = async () => {
@@ -215,7 +230,44 @@ export default function BookingsPage() {
 
             return (
               <div key={mk} className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-6">
-                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">{label} &middot; {monthBookingCount} booking{monthBookingCount !== 1 ? "s" : ""}</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{label} &middot; {monthBookingCount} booking{monthBookingCount !== 1 ? "s" : ""}</h2>
+                  {monthBookingCount > 0 && (
+                    <button
+                      onClick={() => {
+                        const monthBookings = days
+                          .flatMap(d => byDate[`${d.year}-${d.month}-${d.day}`] ?? [])
+                          .filter(b => b.email === session?.user?.email);
+                        const events = monthBookings.map(b => {
+                          const d = new Date(b.date);
+                          const weekend = isWeekend(d.getFullYear(), d.getMonth(), d.getDate());
+                          const dayType = weekend ? "weekend" : "weekday";
+                          const slot = b.slot === "default" ? "default" : b.slot;
+                          const hours = operatingHours.find(h => h.dayType === dayType && (slot === "default" ? h.slot === "default" : h.slot === slot));
+                          return {
+                            title: `High Hill Pham - ${b.slot === "default" ? "Booking" : b.slot.charAt(0).toUpperCase() + b.slot.slice(1)}`,
+                            date: b.date,
+                            openTime: hours?.openTime ?? "09:00",
+                            closeTime: hours?.closeTime ?? "17:00",
+                            name: b.name ?? undefined,
+                          };
+                        });
+                        const ics = buildIcsFile(events);
+                        const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `bookings-${mk}.ics`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="flex items-center gap-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                      Add All to Calendar
+                    </button>
+                  )}
+                </div>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-200 dark:border-zinc-700">
@@ -372,6 +424,34 @@ export default function BookingsPage() {
                     </button>
                   )}
                 </div>
+                {(() => {
+                  const d = new Date(selectedBooking.date);
+                  const weekend = isWeekend(d.getFullYear(), d.getMonth(), d.getDate());
+                  const dayType = weekend ? "weekend" : "weekday";
+                  const slot = selectedBooking.slot === "default" ? "default" : selectedBooking.slot;
+                  const hours = operatingHours.find(h => h.dayType === dayType && (slot === "default" ? h.slot === "default" : h.slot === slot));
+                  const openTime = hours?.openTime ?? (slot === "morning" ? "09:00" : "09:00");
+                  const closeTime = hours?.closeTime ?? (slot === "evening" ? "17:00" : "17:00");
+                  const url = buildGoogleCalendarUrl({
+                    title: `High Hill Pham - ${selectedBooking.slot === "default" ? "Booking" : selectedBooking.slot.charAt(0).toUpperCase() + selectedBooking.slot.slice(1)}`,
+                    date: selectedBooking.date,
+                    slot: selectedBooking.slot,
+                    name: selectedBooking.name ?? undefined,
+                    openTime,
+                    closeTime,
+                  });
+                  return (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 flex items-center justify-center gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                      Add to Google Calendar
+                    </a>
+                  );
+                })()}
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">
