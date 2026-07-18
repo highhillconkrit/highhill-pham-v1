@@ -73,9 +73,14 @@ export async function POST(request: NextRequest) {
   }
 
   const date = new Date(Date.UTC(year, month, day));
+  const now = new Date();
+  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  if (date < todayStart) {
+    return NextResponse.json({ error: "Cannot book dates in the past" }, { status: 403 });
+  }
   const bookingSlot = slot ?? "default";
 
-  const dayOfWeek = date.getDay();
+  const dayOfWeek = date.getUTCDay();
   const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
   const dayType = isWeekendDay ? "weekend" : "weekday";
 

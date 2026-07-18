@@ -333,7 +333,7 @@ export default function Calendar({ onSwitchView }: { onSwitchView?: (view: "list
   const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(null);
   const [form, setForm] = useState({ email: "" });
 
-  const minDate = new Date(today.getFullYear(), today.getMonth() - 1, 25);
+  const minDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const maxDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const minYear = minDate.getFullYear();
   const minMonth = minDate.getMonth();
@@ -601,14 +601,20 @@ export default function Calendar({ onSwitchView }: { onSwitchView?: (view: "list
                       Check Out
                     </button>
                   )}
-                  {session?.user?.email === selectedBooking.email && !selectedBooking.checkedInAt && (
-                    <button
-                      onClick={handleDelete}
-                      className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  )}
+                  {session?.user?.email === selectedBooking.email && !selectedBooking.checkedInAt && (() => {
+                    const bd = new Date(selectedBooking.date.endsWith("Z") ? selectedBooking.date : selectedBooking.date + "Z");
+                    const now = new Date();
+                    const isPast = bd.getUTCFullYear() < now.getUTCFullYear() || (bd.getUTCFullYear() === now.getUTCFullYear() && (bd.getUTCMonth() < now.getUTCMonth() || (bd.getUTCMonth() === now.getUTCMonth() && bd.getUTCDate() < now.getUTCDate())));
+                    return (
+                      <button
+                        onClick={handleDelete}
+                        disabled={isPast}
+                        className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition-colors ${isPast ? "bg-zinc-300 dark:bg-zinc-700 cursor-not-allowed" : "bg-red-600 hover:bg-red-700"}`}
+                      >
+                        Cancel
+                      </button>
+                    );
+                  })()}
                 </div>
                 {(() => {
                   const d = new Date(selectedBooking.date.endsWith("Z") ? selectedBooking.date : selectedBooking.date + "Z");

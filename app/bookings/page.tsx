@@ -67,6 +67,7 @@ export default function BookingsPage({ onSwitchView }: { onSwitchView?: (view: "
   const [urgentDays, setUrgentDays] = useState<Set<string>>(new Set());
 
   const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const minDate = new Date(today.getFullYear(), today.getMonth() - 1, 25);
   const maxDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
@@ -291,6 +292,7 @@ export default function BookingsPage({ onSwitchView }: { onSwitchView?: (view: "
                       const weekend = isWeekend(d.year, d.month, d.day);
                       const isToday = d.year === today.getFullYear() && d.month === today.getMonth() && d.day === today.getDate();
                       const dateStr = `${d.year}-${String(d.month + 1).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
+                      const isPast = new Date(d.year, d.month, d.day) < todayStart;
 
                       if (weekend) {
                         const morningBooking = dayBookings.find(b => b.slot === "morning") ?? null;
@@ -302,7 +304,7 @@ export default function BookingsPage({ onSwitchView }: { onSwitchView?: (view: "
                         const eveningUrgent = urgentDays.has(`${dateStr}_evening`);
 
                         return (
-                          <tr key={key} className="border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+                          <tr key={key} className={`border-b border-zinc-100 dark:border-zinc-800 last:border-0 ${dayBookings.length > 0 ? (dayBookings.some(b => b.email === session.user.email) ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-red-50 dark:bg-red-950/30") : ""}`}>
                             <td className={`py-2 text-zinc-900 dark:text-zinc-100 ${isToday ? "font-bold text-blue-600" : ""}`}>
                               {new Date(d.year, d.month, d.day).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                             </td>
@@ -314,7 +316,7 @@ export default function BookingsPage({ onSwitchView }: { onSwitchView?: (view: "
                                     AM &middot; {morningBooking.name}{morningBooking.checkedInAt ? " \u2713" : ""}
                                   </button>
                                 ) : (
-                                  <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="relative rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                  <button onClick={() => !isPast && openBooking(d.year, d.month, d.day, null)} disabled={isPast} className={`relative rounded px-2 py-1 text-xs font-medium transition-colors ${isPast ? "bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600 cursor-not-allowed" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400"}`}>
                                     {morningUrgent && <svg className="absolute -top-1 -left-1 w-3 h-3 text-yellow-500" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/></svg>}
                                     AM &middot; Free
                                   </button>
@@ -325,7 +327,7 @@ export default function BookingsPage({ onSwitchView }: { onSwitchView?: (view: "
                                     PM &middot; {eveningBooking.name}{eveningBooking.checkedInAt ? " \u2713" : ""}
                                   </button>
                                 ) : (
-                                  <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="relative rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                  <button onClick={() => !isPast && openBooking(d.year, d.month, d.day, null)} disabled={isPast} className={`relative rounded px-2 py-1 text-xs font-medium transition-colors ${isPast ? "bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600 cursor-not-allowed" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400"}`}>
                                     {eveningUrgent && <svg className="absolute -top-1 -left-1 w-3 h-3 text-yellow-500" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/></svg>}
                                     PM &middot; Free
                                   </button>
@@ -341,7 +343,7 @@ export default function BookingsPage({ onSwitchView }: { onSwitchView?: (view: "
                       const weekdayUrgent = urgentDays.has(`${dateStr}_default`);
 
                       return (
-                        <tr key={key} className="border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+                        <tr key={key} className={`border-b border-zinc-100 dark:border-zinc-800 last:border-0 ${defaultBooking ? (defaultBooking.email === session.user.email ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-red-50 dark:bg-red-950/30") : ""}`}>
                           <td className={`py-2 text-zinc-900 dark:text-zinc-100 ${isToday ? "font-bold text-blue-600" : ""}`}>
                             {new Date(d.year, d.month, d.day).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                           </td>
@@ -352,7 +354,7 @@ export default function BookingsPage({ onSwitchView }: { onSwitchView?: (view: "
                                 Booked &middot; {defaultBooking.name}{defaultBooking.checkedInAt ? " \u2713" : ""}
                               </button>
                             ) : (
-                              <button onClick={() => openBooking(d.year, d.month, d.day, null)} className="relative rounded px-2 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                              <button onClick={() => !isPast && openBooking(d.year, d.month, d.day, null)} disabled={isPast} className={`relative rounded px-2 py-1 text-xs font-medium transition-colors ${isPast ? "bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600 cursor-not-allowed" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400"}`}>
                                 {weekdayUrgent && <svg className="absolute -top-1 -left-1 w-3 h-3 text-yellow-500" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/></svg>}
                                 Free
                               </button>
@@ -434,14 +436,20 @@ export default function BookingsPage({ onSwitchView }: { onSwitchView?: (view: "
                       Check Out
                     </button>
                   )}
-                  {session?.user?.email === selectedBooking.email && !selectedBooking.checkedInAt && (
-                    <button
-                      onClick={handleDelete}
-                      className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  )}
+                  {session?.user?.email === selectedBooking.email && !selectedBooking.checkedInAt && (() => {
+                    const bd = new Date(selectedBooking.date.endsWith("Z") ? selectedBooking.date : selectedBooking.date + "Z");
+                    const now = new Date();
+                    const isPast = bd.getUTCFullYear() < now.getUTCFullYear() || (bd.getUTCFullYear() === now.getUTCFullYear() && (bd.getUTCMonth() < now.getUTCMonth() || (bd.getUTCMonth() === now.getUTCMonth() && bd.getUTCDate() < now.getUTCDate())));
+                    return (
+                      <button
+                        onClick={handleDelete}
+                        disabled={isPast}
+                        className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition-colors ${isPast ? "bg-zinc-300 dark:bg-zinc-700 cursor-not-allowed" : "bg-red-600 hover:bg-red-700"}`}
+                      >
+                        Cancel
+                      </button>
+                    );
+                  })()}
                 </div>
                 {(() => {
                   const d = new Date(selectedBooking.date.endsWith("Z") ? selectedBooking.date : selectedBooking.date + "Z");
