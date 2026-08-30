@@ -12,12 +12,6 @@
   "overrides": {
     "uuid": "11.0.0"
   },
-  "allowScripts": [
-    "@prisma/engines",
-    "prisma",
-    "sharp",
-    "unrs-resolver"
-  ],
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",
     "@prisma/adapter-pg": "^7.8.0",
