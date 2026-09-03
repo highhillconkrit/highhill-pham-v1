@@ -69,7 +69,8 @@ export default function BookingsPage({ onSwitchView }: { onSwitchView?: (view: "
   const today = new Date();
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const minDate = new Date(today.getFullYear(), today.getMonth() - 1, 25);
-  const maxDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const canBookNextMonth = today.getDate() >= 25;
+  const maxDate = new Date(today.getFullYear(), today.getMonth() + (canBookNextMonth ? 2 : 1), 0);
 
   useEffect(() => {
     fetch("/api/bookings").then(r => r.ok && r.json()).then(data => {

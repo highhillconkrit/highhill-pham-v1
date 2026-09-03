@@ -334,7 +334,8 @@ export default function Calendar({ onSwitchView }: { onSwitchView?: (view: "list
   const [form, setForm] = useState({ email: "" });
 
   const minDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const maxDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const canBookNextMonth = today.getDate() >= 25;
+  const maxDate = new Date(today.getFullYear(), today.getMonth() + (canBookNextMonth ? 2 : 1), 0);
   const minYear = minDate.getFullYear();
   const minMonth = minDate.getMonth();
   const maxYear = maxDate.getFullYear();
