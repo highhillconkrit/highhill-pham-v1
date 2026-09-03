@@ -121,12 +121,12 @@ function MonthGrid({
       if (weekend) {
         return (
           <div key={key} className="relative aspect-square flex gap-0.5">
-            <div className="flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600">
-              <span>{d}</span>
+            <div className="flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-300 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-600">
+              <span className="font-bold text-base">{d}</span>
               <span className="text-[10px] leading-tight">AM</span>
             </div>
-            <div className="flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600">
-              <span>{d}</span>
+            <div className="flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-300 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-600">
+              <span className="font-bold text-base">{d}</span>
               <span className="text-[10px] leading-tight">PM</span>
             </div>
           </div>
@@ -135,10 +135,10 @@ function MonthGrid({
       return (
         <div
           key={key}
-          className="relative aspect-square flex flex-col items-center justify-center rounded-lg text-sm bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600"
+          className="relative aspect-square flex flex-col items-center justify-center rounded-lg text-sm bg-zinc-300 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-600"
         >
-          <span>{d}</span>
-          <span className="text-[8px] leading-none mt-0.5 opacity-60">closed</span>
+        <span className="font-bold text-lg">{d}</span>
+        <span className="text-[8px] leading-none mt-0.5 opacity-60">closed</span>
         </div>
       );
     }
@@ -158,13 +158,13 @@ function MonthGrid({
           className="relative aspect-square flex gap-0.5"
         >
           {amClosed ? (
-            <div className="relative flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600">
+            <div className="relative flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-300 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-600">
               {amUrgent && (
                 <svg className="absolute top-0.5 left-0.5 w-4 h-4 text-yellow-500 z-10" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/>
                 </svg>
               )}
-              <span>{d}</span>
+              <span className="font-bold text-base">{d}</span>
               <span className="text-[10px] leading-tight">AM</span>
             </div>
           ) : (
@@ -179,18 +179,18 @@ function MonthGrid({
                   <path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/>
                 </svg>
               )}
-              <span className={`${todayMatch ? "text-blue-600 font-bold" : ""} ${amBooking ? "font-semibold" : ""}`}>{d}</span>
+              <span className={`font-bold text-base ${todayMatch ? "text-blue-600" : ""} ${amBooking ? "text-emerald-600 dark:text-emerald-300" : ""}`}>{d}</span>
               <span className="text-[10px] leading-tight">AM</span>
             </button>
           )}
           {pmClosed ? (
-            <div className="relative flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600">
+            <div className="relative flex flex-col items-center justify-center rounded-lg text-xs font-medium flex-1 bg-zinc-300 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-600">
               {pmUrgent && (
                 <svg className="absolute top-0.5 left-0.5 w-4 h-4 text-yellow-500 z-10" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/>
                 </svg>
               )}
-              <span>{d}</span>
+              <span className="font-bold text-base">{d}</span>
               <span className="text-[10px] leading-tight">PM</span>
             </div>
           ) : (
@@ -205,7 +205,7 @@ function MonthGrid({
                   <path d="M13 2L3 14h9l-1 10 10-12h-9l1-10z"/>
                 </svg>
               )}
-              <span className={`${todayMatch ? "text-blue-600 font-bold" : ""} ${pmBooking ? "font-semibold" : ""}`}>{d}</span>
+              <span className={`font-bold text-base ${todayMatch ? "text-blue-600" : ""} ${pmBooking ? "text-emerald-600 dark:text-emerald-300" : ""}`}>{d}</span>
               <span className="text-[10px] leading-tight">PM</span>
             </button>
           )}
@@ -222,10 +222,10 @@ function MonthGrid({
       return (
         <div
           key={key}
-          className="relative aspect-square flex flex-col items-center justify-center rounded-lg text-sm bg-zinc-50 dark:bg-zinc-800/50 text-zinc-300 dark:text-zinc-600"
+          className="relative aspect-square flex flex-col items-center justify-center rounded-lg text-sm bg-zinc-300 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-600"
         >
-          <span>{d}</span>
-          <span className="text-[8px] leading-none mt-0.5 opacity-60">closed</span>
+        <span className="font-bold text-lg">{d}</span>
+        <span className="text-[8px] leading-none mt-0.5 opacity-60">closed</span>
         </div>
       );
     }
@@ -241,7 +241,7 @@ function MonthGrid({
           ${!booked && !todayMatch ? "text-zinc-800 dark:text-zinc-200" : ""}
         `}
       >
-        <span className={`${booked ? "font-semibold" : ""}`}>{d}</span>
+        <span className="font-bold text-lg">{d}</span>
         {booked && <span className="text-[8px] leading-none mt-0.5 opacity-75">booked</span>}
         {urgentDays.has(`${dateStr}_default`) && (
           <svg className="absolute top-0.5 right-0.5 w-4 h-4 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
