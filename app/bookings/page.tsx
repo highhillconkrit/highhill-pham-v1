@@ -73,12 +73,16 @@ export default function BookingsPage({ onSwitchView }: { onSwitchView?: (view: "
   const maxDate = new Date(today.getFullYear(), today.getMonth() + (canBookNextMonth ? 2 : 1), 0);
 
   useEffect(() => {
-    fetch("/api/bookings").then(r => r.ok && r.json()).then(data => {
-      setBookings(data.bookings);
-      setUrgentDays(new Set((data.urgentDays ?? []).map((u: { date: string; slot: string }) => `${u.date}_${u.slot}`)));
-    });
-    fetch("/api/admin/hours").then(r => r.ok && r.json()).then(data => {
-      setOperatingHours(data);
+    fetch("/api/bookings")
+      .then(r => (r.ok ? r.json() : Promise.resolve(null)))
+      .then(data => {
+        data = data ?? {};
+        setBookings(Array.isArray(data.bookings) ? data.bookings : []);
+        setUrgentDays(new Set((data.urgentDays ?? []).map((u: { date: string; slot: string }) => `${u.date}_${u.slot}`)));
+      })
+      .catch(() => {});
+    fetch("/api/admin/hours").then(r => (r.ok ? r.json() : Promise.resolve(null))).then(data => {
+      setOperatingHours(Array.isArray(data) ? data : []);
     }).catch(() => {});
   }, []);
 
@@ -86,7 +90,7 @@ export default function BookingsPage({ onSwitchView }: { onSwitchView?: (view: "
     const res = await fetch("/api/bookings");
     if (res.ok) {
       const data = await res.json();
-      setBookings(data.bookings);
+      setBookings(Array.isArray(data.bookings) ? data.bookings : []);
     }
   };
 

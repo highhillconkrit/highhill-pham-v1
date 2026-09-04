@@ -336,10 +336,11 @@ export default function Calendar({ onSwitchView }: { onSwitchView?: (view: "list
   const minDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const canBookNextMonth = today.getDate() >= 25;
   const maxDate = new Date(today.getFullYear(), today.getMonth() + (canBookNextMonth ? 2 : 1), 0);
+  const navMaxDate = new Date(today.getFullYear(), today.getMonth() + 2, 0);
   const minYear = minDate.getFullYear();
   const minMonth = minDate.getMonth();
-  const maxYear = maxDate.getFullYear();
-  const maxMonth = maxDate.getMonth();
+  const maxYear = navMaxDate.getFullYear();
+  const maxMonth = navMaxDate.getMonth();
 
   const atMin = year === minYear && month === minMonth;
   const atMax = year === maxYear && month === maxMonth;
